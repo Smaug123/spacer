@@ -52,16 +52,15 @@ def main(args):
         d_model=128,  # Size of embeddings and transformer hidden size
         nhead=8,  # Number of attention heads
         num_encoder_layers=6,
-        num_decoder_layers=6,
         dim_feedforward=512,
         max_seq_length=SAMPLE_LEN  # Max sequence length
     ).to('mps')
 
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(my_model.parameters(), lr=0.0001)
+    # optimizer = optim.Adam(my_model.parameters(), lr=0.01)
+    optimizer = torch.optim.SGD(my_model.parameters(), lr=0.00001)
 
     # Training
-    num_epochs = 100
+    num_epochs = 10000
     start_epoch = -1
     checkpoint_path = "checkpoint.pth"
 
@@ -79,9 +78,13 @@ def main(args):
             optimizer.zero_grad()
 
             input_seq, target_seq = batch
-            output = my_model(input_seq, target_seq)
+            # print(f"Input: {input_seq}")
+            output = my_model(input_seq)
+            # print(f"Output: {output}")
+            # print(f"Target: {target_seq}")
 
             # Calculate loss
+            criterion = nn.BCELoss(reduction='sum', weight=target_seq.float() * 4 + 1)
             loss = criterion(output, target_seq.float())
 
             loss.backward()
@@ -89,7 +92,8 @@ def main(args):
 
             total_loss += loss.item()
 
-        model.save_checkpoint(my_model, optimizer, epoch, checkpoint_path)
+        model.save_checkpoint(my_model, optimizer, epoch, checkpoint_path + ".new")
+        os.rename(checkpoint_path + ".new", checkpoint_path)
         print(f'Epoch {epoch}, Loss: {total_loss / len(train_loader)}')
 
     index_to_token = {index: token for token, index in char_to_index_map.items()}
@@ -100,18 +104,11 @@ def main(args):
     with torch.no_grad():
         input_seq = dataset.to_tensor(example, char_to_index_map, SAMPLE_LEN)
         print(input_seq)
-        tgt = torch.zeros_like(input_seq)
-        for i in range(1, len(input_seq[0])):
-            tgt[0, i] = 1
+        output = my_model(input_seq)[0].sigmoid()
         for i in range(len(input_seq[0])):
-            output = my_model(input_seq, tgt)[0].sigmoid()
-            print(f"{i}: {output}")
             output_sequence.append(index_to_token[input_seq[0, i].item()])
             if output[i].item() > 0.5:
                 output_sequence.append(' ')
-                tgt[0, i] = 1
-            else:
-                tgt[0, i] = 0
         print(''.join(output_sequence))
         # print(convert_to_readable(input_seq[0], output, char_to_index_map))
 
