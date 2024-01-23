@@ -1,5 +1,6 @@
 .venv/
 checkpoint.pth
+checkpoint.pth.new
 .DS_Store
 .idea/
 __pycache__/
